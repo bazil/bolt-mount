@@ -13,6 +13,9 @@ var progName = filepath.Base(os.Args[0])
 func usage() {
 	fmt.Fprintf(os.Stderr, "Usage of %s:\n", progName)
 	fmt.Fprintf(os.Stderr, "  %s DBPATH MOUNTPOINT\n", progName)
+	fmt.Fprintf(os.Stderr, "\n")
+	fmt.Fprintf(os.Stderr, "  DBPATH will be created if it does not exist.\n")
+	fmt.Fprintf(os.Stderr, "\n")
 	flag.PrintDefaults()
 }
 
