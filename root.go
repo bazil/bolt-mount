@@ -55,3 +55,26 @@ func (r *Root) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
 	}
 	return n, nil
 }
+
+var _ = fs.NodeMkdirer(&Root{})
+
+func (r *Root) Mkdir(req *fuse.MkdirRequest, intr fs.Intr) (fs.Node, fuse.Error) {
+	name := []byte(req.Name)
+	err := r.fs.db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(name)
+		if b != nil {
+			return fuse.EEXIST
+		}
+		if _, err := tx.CreateBucket(name); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	n := &Dir{
+		root: r,
+	}
+	return n, nil
+}
