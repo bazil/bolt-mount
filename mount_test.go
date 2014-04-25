@@ -132,7 +132,34 @@ func TestBucketReaddir(t *testing.T) {
 				t.Fatalf("wrong readdir results: got %v", fis)
 			}
 			checkFI(t, fis[0], fileInfo{name: "one", size: 0, mode: 0755 | os.ModeDir})
-			checkFI(t, fis[1], fileInfo{name: "two", size: 0, mode: 0644})
+			checkFI(t, fis[1], fileInfo{name: "two", size: 5, mode: 0644})
+		})
+	})
+}
+
+func TestRead(t *testing.T) {
+	withDB(t, func(db *bolt.DB) {
+		prep := func(tx *bolt.Tx) error {
+			b, err := tx.CreateBucket([]byte("bukkit"))
+			if err != nil {
+				return err
+			}
+			if err := b.Put([]byte("greeting"), []byte("hello")); err != nil {
+				return err
+			}
+			return nil
+		}
+		if err := db.Update(prep); err != nil {
+			t.Fatal(err)
+		}
+		withMount(t, db, func(mntpath string) {
+			data, err := ioutil.ReadFile(filepath.Join(mntpath, "bukkit", "greeting"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if g, e := string(data), "hello"; g != e {
+				t.Fatalf("wrong read results: %q != %q", g, e)
+			}
 		})
 	})
 }
