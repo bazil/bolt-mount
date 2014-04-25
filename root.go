@@ -46,7 +46,8 @@ func (r *Root) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
 			return fuse.ENOENT
 		}
 		n = &Dir{
-			root: r,
+			root:    r,
+			buckets: [][]byte{[]byte(name)},
 		}
 		return nil
 	})
@@ -74,7 +75,8 @@ func (r *Root) Mkdir(req *fuse.MkdirRequest, intr fs.Intr) (fs.Node, fuse.Error)
 		return nil, err
 	}
 	n := &Dir{
-		root: r,
+		root:    r,
+		buckets: [][]byte{name},
 	}
 	return n, nil
 }
