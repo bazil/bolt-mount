@@ -230,3 +230,72 @@ func TestWrite(t *testing.T) {
 		}
 	})
 }
+
+func TestReadNested(t *testing.T) {
+	withDB(t, func(db *bolt.DB) {
+		prep := func(tx *bolt.Tx) error {
+			b, err := tx.CreateBucket([]byte("bukkit"))
+			if err != nil {
+				return err
+			}
+			b, err = b.CreateBucket([]byte("sub"))
+			if err != nil {
+				return err
+			}
+			if err := b.Put([]byte("greeting"), []byte("hello")); err != nil {
+				return err
+			}
+			return nil
+		}
+		if err := db.Update(prep); err != nil {
+			t.Fatal(err)
+		}
+		withMount(t, db, func(mntpath string) {
+			data, err := ioutil.ReadFile(filepath.Join(mntpath, "bukkit", "sub", "greeting"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if g, e := string(data), "hello"; g != e {
+				t.Fatalf("wrong read results: %q != %q", g, e)
+			}
+		})
+	})
+}
+
+func TestWriteNested(t *testing.T) {
+	withDB(t, func(db *bolt.DB) {
+		withMount(t, db, func(mntpath string) {
+			if err := os.Mkdir(filepath.Join(mntpath, "bukkit"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Mkdir(filepath.Join(mntpath, "bukkit", "sub"), 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := ioutil.WriteFile(
+				filepath.Join(mntpath, "bukkit", "sub", "greeting"),
+				[]byte("hello"),
+				0600,
+			); err != nil {
+				t.Fatal(err)
+			}
+		})
+		check := func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("bukkit"))
+			if b == nil {
+				t.Fatalf("bukkit disappeared")
+			}
+			b = b.Bucket([]byte("sub"))
+			if b == nil {
+				t.Fatalf("sub-bukkit disappeared")
+			}
+			v := b.Get([]byte("greeting"))
+			if g, e := string(v), "hello"; g != e {
+				t.Fatalf("wrong write content: %q != %q", g, e)
+			}
+			return nil
+		}
+		if err := db.View(check); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
