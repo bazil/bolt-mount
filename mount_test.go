@@ -163,3 +163,41 @@ func TestRead(t *testing.T) {
 		})
 	})
 }
+
+func TestWrite(t *testing.T) {
+	withDB(t, func(db *bolt.DB) {
+		prep := func(tx *bolt.Tx) error {
+			_, err := tx.CreateBucket([]byte("bukkit"))
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		if err := db.Update(prep); err != nil {
+			t.Fatal(err)
+		}
+		withMount(t, db, func(mntpath string) {
+			if err := ioutil.WriteFile(
+				filepath.Join(mntpath, "bukkit", "greeting"),
+				[]byte("hello"),
+				0600,
+			); err != nil {
+				t.Fatal(err)
+			}
+		})
+		check := func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("bukkit"))
+			if b == nil {
+				t.Fatalf("bukkit disappeared")
+			}
+			v := b.Get([]byte("greeting"))
+			if g, e := string(v), "hello"; g != e {
+				t.Fatalf("wrong write content: %q != %q", g, e)
+			}
+			return nil
+		}
+		if err := db.View(check); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
