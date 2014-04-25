@@ -85,6 +85,7 @@ func (d *Dir) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
 			// file
 			n = &File{
 				dir:  d,
+				size: uint64(len(child)),
 				name: nameB,
 			}
 			return nil
