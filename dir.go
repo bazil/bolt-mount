@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"os"
+	"syscall"
 
 	"github.com/boltdb/bolt"
 
@@ -94,6 +95,36 @@ func (d *Dir) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
 	})
 	if err != nil {
 		return nil, err
+	}
+	return n, nil
+}
+
+var _ = fs.NodeMkdirer(&Dir{})
+
+func (d *Dir) Mkdir(req *fuse.MkdirRequest, intr fs.Intr) (fs.Node, fuse.Error) {
+	name := []byte(req.Name)
+	err := d.root.fs.db.Update(func(tx *bolt.Tx) error {
+		b := d.bucket(tx)
+		if b == nil {
+			return errors.New("bucket no longer exists")
+		}
+		if child := b.Bucket(name); child != nil {
+			return fuse.Errno(syscall.EEXIST)
+		}
+		if _, err := b.CreateBucket(name); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	buckets := make([][]byte, 0, len(d.buckets)+1)
+	buckets = append(buckets, d.buckets...)
+	buckets = append(buckets, name)
+	n := &Dir{
+		root:    d.root,
+		buckets: buckets,
 	}
 	return n, nil
 }

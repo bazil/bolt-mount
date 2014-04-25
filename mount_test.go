@@ -133,6 +133,40 @@ func TestBucketReaddir(t *testing.T) {
 	})
 }
 
+func TestBucketMkdir(t *testing.T) {
+	withDB(t, func(db *bolt.DB) {
+		prep := func(tx *bolt.Tx) error {
+			_, err := tx.CreateBucket([]byte("bukkit"))
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		if err := db.Update(prep); err != nil {
+			t.Fatal(err)
+		}
+		withMount(t, db, func(mntpath string) {
+			if err := os.Mkdir(filepath.Join(mntpath, "bukkit", "sub"), 0700); err != nil {
+				t.Error(err)
+			}
+		})
+		check := func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("bukkit"))
+			if b == nil {
+				t.Error("expected to see bucket 'bukkit'")
+			}
+			b = b.Bucket([]byte("sub"))
+			if b == nil {
+				t.Error("expected to see bucket 'bukkit' 'sub'")
+			}
+			return nil
+		}
+		if err := db.View(check); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
 func TestRead(t *testing.T) {
 	withDB(t, func(db *bolt.DB) {
 		prep := func(tx *bolt.Tx) error {
