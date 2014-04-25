@@ -97,3 +97,18 @@ func (d *Dir) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
 	}
 	return n, nil
 }
+
+var _ = fs.NodeCreater(&Dir{})
+
+func (d *Dir) Create(req *fuse.CreateRequest, resp *fuse.CreateResponse, intr fs.Intr) (fs.Node, fs.Handle, fuse.Error) {
+	nameB := []byte(req.Name)
+	f := &File{
+		dir:  d,
+		name: nameB,
+	}
+	h := &FileHandle{
+		file: f,
+		data: nil,
+	}
+	return f, h, nil
+}
