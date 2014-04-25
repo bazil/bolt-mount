@@ -3,6 +3,7 @@ package main
 import (
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/boltdb/bolt"
@@ -77,5 +78,25 @@ func TestRootReaddir(t *testing.T) {
 			checkFI(t, fis[0], fileInfo{name: "one", size: 0, mode: 0755 | os.ModeDir})
 			checkFI(t, fis[1], fileInfo{name: "two", size: 0, mode: 0755 | os.ModeDir})
 		})
+	})
+}
+
+func TestRootMkdir(t *testing.T) {
+	withDB(t, func(db *bolt.DB) {
+		withMount(t, db, func(mntpath string) {
+			if err := os.Mkdir(filepath.Join(mntpath, "one"), 0700); err != nil {
+				t.Error(err)
+			}
+		})
+		check := func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("one"))
+			if b == nil {
+				t.Error("expected to see bucket 'one'")
+			}
+			return nil
+		}
+		if err := db.View(check); err != nil {
+			t.Fatal(err)
+		}
 	})
 }
