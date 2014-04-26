@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"testing"
 )
 
 func ExampleEncodeKey() {
@@ -22,4 +23,12 @@ func ExampleEncodeKey() {
 	fmt.Println(filename)
 	// Output:
 	// @002a2710:test
+}
+
+func TestEncodeKeyLeadingDot(t *testing.T) {
+	key := []byte(".evil")
+	filename := EncodeKey(key)
+	if g, e := filename, "@2e:evil"; g != e {
+		t.Errorf("leading dot not encoded: %q != %q", g, e)
+	}
 }
