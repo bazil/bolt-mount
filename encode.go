@@ -52,20 +52,25 @@ func EncodeKey(key []byte) string {
 	// we do sloppy work and process safe bytes only at the beginning
 	// and end; this avoids many false positives in large binary data
 
-	var left, middle, right string
+	var left, right []byte
+	var middle string
 
-	{
+	if key[0] != '.' {
 		mid := bytes.TrimLeftFunc(key, isSafe)
 		if len(key)-len(mid) > prettyTheshold {
-			left = string(key[:len(key)-len(mid)]) + string(FragSeparator)
+			left = key[:len(key)-len(mid)]
 			key = mid
 		}
 	}
 
 	{
 		mid := bytes.TrimRightFunc(key, isSafe)
+		if len(mid) == 0 && len(key) > 0 && key[0] == '.' {
+			// don't let right safe zone reach all the way to leading dot
+			mid = key[:1]
+		}
 		if len(key)-len(mid) > prettyTheshold {
-			right = string(FragSeparator) + string(key[len(mid):])
+			right = key[len(mid):]
 			key = mid
 		}
 	}
@@ -74,5 +79,8 @@ func EncodeKey(key []byte) string {
 		middle = "@" + hex.EncodeToString(key)
 	}
 
-	return strings.Trim(left+middle+right, string(FragSeparator))
+	return strings.Trim(
+		string(left)+string(FragSeparator)+middle+string(FragSeparator)+string(right),
+		string(FragSeparator),
+	)
 }
