@@ -304,3 +304,40 @@ func TestWriteNested(t *testing.T) {
 		}
 	})
 }
+
+func TestBinary(t *testing.T) {
+	withDB(t, func(db *bolt.DB) {
+		err := db.Update(func(tx *bolt.Tx) error {
+			b, err := tx.CreateBucket([]byte("evil\x00lol/mwahaha"))
+			if err != nil {
+				return err
+			}
+			if err := b.Put([]byte("\x01\x02foobar"), []byte("hello")); err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		withMount(t, db, func(mntpath string) {
+			fis, err := ioutil.ReadDir(mntpath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if g, e := len(fis), 1; g != e {
+				t.Fatalf("wrong readdir results: got %v", fis)
+			}
+			checkFI(t, fis[0], fileInfo{name: "evil:@006c6f6c2f:mwahaha", size: 0, mode: 0755 | os.ModeDir})
+
+			fis, err = ioutil.ReadDir(filepath.Join(mntpath, "evil:@006c6f6c2f:mwahaha"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if g, e := len(fis), 1; g != e {
+				t.Fatalf("wrong readdir results: got %v", fis)
+			}
+			checkFI(t, fis[0], fileInfo{name: "@0102:foobar", size: 5, mode: 0644})
+		})
+	})
+}
