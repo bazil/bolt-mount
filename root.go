@@ -30,7 +30,7 @@ func (r *Root) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
 		return tx.ForEach(func(name []byte, b *bolt.Bucket) error {
 			res = append(res, fuse.Dirent{
 				Type: fuse.DT_Dir,
-				Name: string(name),
+				Name: EncodeKey(name),
 			})
 			return nil
 		})
@@ -43,13 +43,17 @@ var _ = fs.NodeStringLookuper(&Root{})
 func (r *Root) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
 	var n fs.Node
 	err := r.fs.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(name))
+		nameRaw, err := DecodeKey(name)
+		if err != nil {
+			return fuse.ENOENT
+		}
+		b := tx.Bucket(nameRaw)
 		if b == nil {
 			return fuse.ENOENT
 		}
 		n = &Dir{
 			root:    r,
-			buckets: [][]byte{[]byte(name)},
+			buckets: [][]byte{nameRaw},
 		}
 		return nil
 	})
@@ -62,8 +66,11 @@ func (r *Root) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
 var _ = fs.NodeMkdirer(&Root{})
 
 func (r *Root) Mkdir(req *fuse.MkdirRequest, intr fs.Intr) (fs.Node, fuse.Error) {
-	name := []byte(req.Name)
-	err := r.fs.db.Update(func(tx *bolt.Tx) error {
+	name, err := DecodeKey(req.Name)
+	if err != nil {
+		return nil, fuse.ENOENT
+	}
+	err = r.fs.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(name)
 		if b != nil {
 			return fuse.Errno(syscall.EEXIST)
