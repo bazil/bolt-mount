@@ -89,3 +89,29 @@ func (r *Root) Mkdir(req *fuse.MkdirRequest, intr fs.Intr) (fs.Node, fuse.Error)
 	}
 	return n, nil
 }
+
+var _ = fs.NodeRemover(&Root{})
+
+func (r *Root) Remove(req *fuse.RemoveRequest, intr fs.Intr) fuse.Error {
+	nameRaw, err := DecodeKey(req.Name)
+	if err != nil {
+		return fuse.ENOENT
+	}
+	fn := func(tx *bolt.Tx) error {
+		switch req.Dir {
+		case true:
+			if tx.Bucket(nameRaw) == nil {
+				return fuse.Errno(syscall.ENOENT)
+			}
+			if err := tx.DeleteBucket(nameRaw); err != nil {
+				return err
+			}
+
+		case false:
+			// no files at root
+			return fuse.Errno(syscall.ENOENT)
+		}
+		return nil
+	}
+	return r.fs.db.Update(fn)
+}

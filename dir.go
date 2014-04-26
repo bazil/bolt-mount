@@ -152,3 +152,38 @@ func (d *Dir) Create(req *fuse.CreateRequest, resp *fuse.CreateResponse, intr fs
 	}
 	return f, h, nil
 }
+
+var _ = fs.NodeRemover(&Dir{})
+
+func (d *Dir) Remove(req *fuse.RemoveRequest, intr fs.Intr) fuse.Error {
+	nameRaw, err := DecodeKey(req.Name)
+	if err != nil {
+		return fuse.ENOENT
+	}
+	fn := func(tx *bolt.Tx) error {
+		b := d.bucket(tx)
+		if b == nil {
+			return errors.New("bucket no longer exists")
+		}
+
+		switch req.Dir {
+		case true:
+			if b.Bucket(nameRaw) == nil {
+				return fuse.Errno(syscall.ENOENT)
+			}
+			if err := b.DeleteBucket(nameRaw); err != nil {
+				return err
+			}
+
+		case false:
+			if b.Get(nameRaw) == nil {
+				return fuse.Errno(syscall.ENOENT)
+			}
+			if err := b.Delete(nameRaw); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	return d.root.fs.db.Update(fn)
+}

@@ -101,6 +101,36 @@ func TestRootMkdir(t *testing.T) {
 	})
 }
 
+func TestRootRmdir(t *testing.T) {
+	withDB(t, func(db *bolt.DB) {
+		prep := func(tx *bolt.Tx) error {
+			if _, err := tx.CreateBucket([]byte("one")); err != nil {
+				return err
+			}
+			return nil
+		}
+		if err := db.Update(prep); err != nil {
+			t.Fatal(err)
+		}
+
+		withMount(t, db, func(mntpath string) {
+			if err := os.Remove(filepath.Join(mntpath, "one")); err != nil {
+				t.Error(err)
+			}
+		})
+		check := func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("one"))
+			if b != nil {
+				t.Error("bucket 'one' is still there")
+			}
+			return nil
+		}
+		if err := db.View(check); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
 func TestBucketReaddir(t *testing.T) {
 	withDB(t, func(db *bolt.DB) {
 		prep := func(tx *bolt.Tx) error {
@@ -158,6 +188,43 @@ func TestBucketMkdir(t *testing.T) {
 			b = b.Bucket([]byte("sub"))
 			if b == nil {
 				t.Error("expected to see bucket 'bukkit' 'sub'")
+			}
+			return nil
+		}
+		if err := db.View(check); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestBucketRmdir(t *testing.T) {
+	withDB(t, func(db *bolt.DB) {
+		prep := func(tx *bolt.Tx) error {
+			b, err := tx.CreateBucket([]byte("bukkit"))
+			if err != nil {
+				return err
+			}
+			if _, err := b.CreateBucket([]byte("sub")); err != nil {
+				return err
+			}
+			return nil
+		}
+		if err := db.Update(prep); err != nil {
+			t.Fatal(err)
+		}
+		withMount(t, db, func(mntpath string) {
+			if err := os.Remove(filepath.Join(mntpath, "bukkit", "sub")); err != nil {
+				t.Error(err)
+			}
+		})
+		check := func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("bukkit"))
+			if b == nil {
+				t.Error("expected to see bucket 'bukkit'")
+			}
+			b = b.Bucket([]byte("sub"))
+			if b != nil {
+				t.Error("bucket 'one' is still there")
 			}
 			return nil
 		}
@@ -292,6 +359,43 @@ func TestWriteNested(t *testing.T) {
 			v := b.Get([]byte("greeting"))
 			if g, e := string(v), "hello"; g != e {
 				t.Fatalf("wrong write content: %q != %q", g, e)
+			}
+			return nil
+		}
+		if err := db.View(check); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestRemove(t *testing.T) {
+	withDB(t, func(db *bolt.DB) {
+		prep := func(tx *bolt.Tx) error {
+			b, err := tx.CreateBucket([]byte("bukkit"))
+			if err != nil {
+				return err
+			}
+			if err := b.Put([]byte("greeting"), []byte("hello")); err != nil {
+				return err
+			}
+			return nil
+		}
+		if err := db.Update(prep); err != nil {
+			t.Fatal(err)
+		}
+		withMount(t, db, func(mntpath string) {
+			if err := os.Remove(filepath.Join(mntpath, "bukkit", "greeting")); err != nil {
+				t.Fatal(err)
+			}
+		})
+		check := func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("bukkit"))
+			if b == nil {
+				t.Fatalf("bukkit disappeared")
+			}
+			v := b.Get([]byte("greeting"))
+			if v != nil {
+				t.Errorf("greeting is still there: %q", v)
 			}
 			return nil
 		}
