@@ -41,13 +41,14 @@ First, we define *safe* as:
 - ASCII letters and numbers
 - the characters ".", "," "-", "_" (period/dot, comma, dash, underscore)
 
-A name consisting completely of *safe* characters is unaltered.
-Everything else is hex-encoded. Hex encoding looks like
-`@xx[xx..]` where `xx` are lower case hex digits.
+A name consisting completely of *safe* characters, and not starting
+with a dot, is unaltered. Everything else is hex-encoded. Hex encoding
+looks like `@xx[xx..]` where `xx` are lower case hex digits.
 
-Additionally, any *safe* prefixes and suffixes longer than than a
-noise threshold remain unaltered. They are separated from the hex
-encoded middle part by a semicolon, as in `[PREFIX:]MIDDLE[:SUFFIX]`.
+Additionally, any *safe* prefixes (not starting with a dot) and
+suffixes longer than than a noise threshold remain unaltered. They are
+separated from the hex encoded middle part by a semicolon, as in
+`[PREFIX:]MIDDLE[:SUFFIX]`.
 
 For example:
 
