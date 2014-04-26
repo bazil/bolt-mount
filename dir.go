@@ -46,7 +46,7 @@ func (d *Dir) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
 		c := b.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			de := fuse.Dirent{
-				Name: string(k),
+				Name: EncodeKey(k),
 			}
 			if v == nil {
 				de.Type = fuse.DT_Dir
@@ -69,24 +69,27 @@ func (d *Dir) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
 		if b == nil {
 			return errors.New("bucket no longer exists")
 		}
-		nameB := []byte(name)
-		if child := b.Bucket(nameB); child != nil {
+		nameRaw, err := DecodeKey(name)
+		if err != nil {
+			return fuse.ENOENT
+		}
+		if child := b.Bucket(nameRaw); child != nil {
 			// directory
 			buckets := make([][]byte, 0, len(d.buckets)+1)
 			buckets = append(buckets, d.buckets...)
-			buckets = append(buckets, nameB)
+			buckets = append(buckets, nameRaw)
 			n = &Dir{
 				root:    d.root,
 				buckets: buckets,
 			}
 			return nil
 		}
-		if child := b.Get(nameB); child != nil {
+		if child := b.Get(nameRaw); child != nil {
 			// file
 			n = &File{
 				dir:  d,
 				size: uint64(len(child)),
-				name: nameB,
+				name: nameRaw,
 			}
 			return nil
 		}
@@ -101,8 +104,11 @@ func (d *Dir) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
 var _ = fs.NodeMkdirer(&Dir{})
 
 func (d *Dir) Mkdir(req *fuse.MkdirRequest, intr fs.Intr) (fs.Node, fuse.Error) {
-	name := []byte(req.Name)
-	err := d.root.fs.db.Update(func(tx *bolt.Tx) error {
+	name, err := DecodeKey(req.Name)
+	if err != nil {
+		return nil, fuse.EPERM
+	}
+	err = d.root.fs.db.Update(func(tx *bolt.Tx) error {
 		b := d.bucket(tx)
 		if b == nil {
 			return errors.New("bucket no longer exists")
@@ -131,10 +137,13 @@ func (d *Dir) Mkdir(req *fuse.MkdirRequest, intr fs.Intr) (fs.Node, fuse.Error) 
 var _ = fs.NodeCreater(&Dir{})
 
 func (d *Dir) Create(req *fuse.CreateRequest, resp *fuse.CreateResponse, intr fs.Intr) (fs.Node, fs.Handle, fuse.Error) {
-	nameB := []byte(req.Name)
+	nameRaw, err := DecodeKey(req.Name)
+	if err != nil {
+		return nil, nil, fuse.EPERM
+	}
 	f := &File{
 		dir:  d,
-		name: nameB,
+		name: nameRaw,
 	}
 	h := &FileHandle{
 		file: f,

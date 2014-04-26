@@ -30,3 +30,26 @@ $ fusermount -u mnt
 $ umount mnt
 [1]+  Done                    bolt-mount mydatabase.bolt mnt
 ```
+
+## Encoding keys to file names
+
+As Bolt keys can contain arbitrary bytes, but file names cannot, the
+keys are encoded.
+
+First, we define *safe* as:
+
+- ASCII letters and numbers
+- the characters ".", "," "-", "_" (period/dot, comma, dash, underscore)
+
+A name consisting completely of *safe* characters is unaltered.
+Everything else is hex-encoded. Hex encoding looks like
+`@xx[xx..]` where `xx` are lower case hex digits.
+
+Additionally, any *safe* prefixes and suffixes longer than than a
+noise threshold remain unaltered. They are separated from the hex
+encoded middle part by a semicolon, as in `[PREFIX:]MIDDLE[:SUFFIX]`.
+
+For example:
+
+A Bolt key packing two little-endian `uint16` values 42 and 10000 and the string
+"test" is encoded as filename `@002a2710:test`.
