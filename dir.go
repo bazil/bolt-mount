@@ -174,6 +174,10 @@ func (d *Dir) Mkdir(req *fuse.MkdirRequest, intr fs.Intr) (fs.Node, fuse.Error) 
 var _ = fs.NodeCreater(&Dir{})
 
 func (d *Dir) Create(req *fuse.CreateRequest, resp *fuse.CreateResponse, intr fs.Intr) (fs.Node, fs.Handle, fuse.Error) {
+	if len(d.buckets) == 0 {
+		// only buckets go in root bucket
+		return nil, nil, fuse.EPERM
+	}
 	nameRaw, err := DecodeKey(req.Name)
 	if err != nil {
 		return nil, nil, fuse.EPERM
