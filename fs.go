@@ -13,7 +13,7 @@ type FS struct {
 var _ = fs.FS(&FS{})
 
 func (f *FS) Root() (fs.Node, fuse.Error) {
-	n := &Root{
+	n := &Dir{
 		fs: f,
 	}
 	return n, nil
