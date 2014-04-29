@@ -10,7 +10,8 @@ import (
 )
 
 type Dir struct {
-	root    *Root
+	fs *FS
+	// path from Bolt database root to this bucket; empty for root bucket
 	buckets [][]byte
 }
 
@@ -20,9 +21,45 @@ func (d *Dir) Attr() fuse.Attr {
 	return fuse.Attr{Mode: os.ModeDir | 0755}
 }
 
-var _ = fs.HandleReadDirer(&Root{})
+var _ = fs.HandleReadDirer(&Dir{})
 
-func (d *Dir) bucket(tx *bolt.Tx) *bolt.Bucket {
+type BucketLike interface {
+	Bucket(name []byte) *bolt.Bucket
+	CreateBucket(name []byte) (*bolt.Bucket, error)
+	DeleteBucket(name []byte) error
+	Cursor() *bolt.Cursor
+	Get(key []byte) []byte
+	Put(key []byte, value []byte) error
+	Delete(key []byte) error
+}
+
+// root bucket is special because it cannot contain keys, and doesn't
+// really have a *bolt.Bucket exposed in the Bolt API.
+type fakeBucket struct {
+	*bolt.Tx
+}
+
+func (fakeBucket) Get(key []byte) []byte {
+	return nil
+}
+
+func (fakeBucket) Put(key []byte, value []byte) error {
+	return fuse.EPERM
+}
+
+func (fakeBucket) Delete(key []byte) error {
+	return fuse.EPERM
+}
+
+// bucket returns a BucketLike value (either a *bolt.Bucket or a
+// *bolt.Tx wrapped in a fakeBucket, to provide Get/Put/Delete
+// methods).
+//
+// It never returns a nil value in a non-nil interface.
+func (d *Dir) bucket(tx *bolt.Tx) BucketLike {
+	if len(d.buckets) == 0 {
+		return fakeBucket{tx}
+	}
 	b := tx.Bucket(d.buckets[0])
 	if b == nil {
 		return nil
@@ -38,7 +75,7 @@ func (d *Dir) bucket(tx *bolt.Tx) *bolt.Bucket {
 
 func (d *Dir) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
 	var res []fuse.Dirent
-	err := d.root.fs.db.View(func(tx *bolt.Tx) error {
+	err := d.fs.db.View(func(tx *bolt.Tx) error {
 		b := d.bucket(tx)
 		if b == nil {
 			return errors.New("bucket no longer exists")
@@ -64,7 +101,7 @@ var _ = fs.NodeStringLookuper(&Dir{})
 
 func (d *Dir) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
 	var n fs.Node
-	err := d.root.fs.db.View(func(tx *bolt.Tx) error {
+	err := d.fs.db.View(func(tx *bolt.Tx) error {
 		b := d.bucket(tx)
 		if b == nil {
 			return errors.New("bucket no longer exists")
@@ -79,7 +116,7 @@ func (d *Dir) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
 			buckets = append(buckets, d.buckets...)
 			buckets = append(buckets, nameRaw)
 			n = &Dir{
-				root:    d.root,
+				fs:      d.fs,
 				buckets: buckets,
 			}
 			return nil
@@ -108,7 +145,7 @@ func (d *Dir) Mkdir(req *fuse.MkdirRequest, intr fs.Intr) (fs.Node, fuse.Error) 
 	if err != nil {
 		return nil, fuse.EPERM
 	}
-	err = d.root.fs.db.Update(func(tx *bolt.Tx) error {
+	err = d.fs.db.Update(func(tx *bolt.Tx) error {
 		b := d.bucket(tx)
 		if b == nil {
 			return errors.New("bucket no longer exists")
@@ -128,7 +165,7 @@ func (d *Dir) Mkdir(req *fuse.MkdirRequest, intr fs.Intr) (fs.Node, fuse.Error) 
 	buckets = append(buckets, d.buckets...)
 	buckets = append(buckets, name)
 	n := &Dir{
-		root:    d.root,
+		fs:      d.fs,
 		buckets: buckets,
 	}
 	return n, nil
@@ -184,5 +221,5 @@ func (d *Dir) Remove(req *fuse.RemoveRequest, intr fs.Intr) fuse.Error {
 		}
 		return nil
 	}
-	return d.root.fs.db.Update(fn)
+	return d.fs.db.Update(fn)
 }

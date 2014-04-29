@@ -29,7 +29,7 @@ func (f *File) Open(req *fuse.OpenRequest, resp *fuse.OpenResponse, intr fs.Intr
 	var h fs.Handle
 	var data []byte
 
-	err := f.dir.root.fs.db.View(func(tx *bolt.Tx) error {
+	err := f.dir.fs.db.View(func(tx *bolt.Tx) error {
 		b := f.dir.bucket(tx)
 		if b == nil {
 			return errors.New("bucket no longer exists")
@@ -90,7 +90,7 @@ func (h *FileHandle) Write(req *fuse.WriteRequest, resp *fuse.WriteResponse, int
 var _ = fs.HandleFlusher(&FileHandle{})
 
 func (h *FileHandle) Flush(req *fuse.FlushRequest, intr fs.Intr) fuse.Error {
-	err := h.file.dir.root.fs.db.Update(func(tx *bolt.Tx) error {
+	err := h.file.dir.fs.db.Update(func(tx *bolt.Tx) error {
 		b := h.file.dir.bucket(tx)
 		if b == nil {
 			return fuse.ESTALE
