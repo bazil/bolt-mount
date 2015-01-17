@@ -125,7 +125,6 @@ func (d *Dir) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
 			// file
 			n = &File{
 				dir:  d,
-				size: uint64(len(child)),
 				name: nameRaw,
 			}
 			return nil
@@ -183,14 +182,12 @@ func (d *Dir) Create(req *fuse.CreateRequest, resp *fuse.CreateResponse, intr fs
 		return nil, nil, fuse.EPERM
 	}
 	f := &File{
-		dir:  d,
-		name: nameRaw,
+		dir:     d,
+		name:    nameRaw,
+		writers: 1,
+		// file is empty at Create time, no need to set data
 	}
-	h := &FileHandle{
-		file: f,
-		data: nil,
-	}
-	return f, h, nil
+	return f, f, nil
 }
 
 var _ = fs.NodeRemover(&Dir{})

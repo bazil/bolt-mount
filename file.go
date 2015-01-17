@@ -2,33 +2,33 @@ package main
 
 import (
 	"errors"
-	"fmt"
-	"os"
+	"sync"
 	"syscall"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
+	"bazil.org/fuse/fuseutil"
 	"github.com/boltdb/bolt"
 )
 
 type File struct {
 	dir  *Dir
-	size uint64
 	name []byte
+
+	mu sync.Mutex
+	// number of write-capable handles currently open
+	writers uint
+	// only valid if writers > 0
+	data []byte
 }
 
 var _ = fs.Node(&File{})
+var _ = fs.Handle(&File{})
 
-func (f *File) Attr() fuse.Attr {
-	return fuse.Attr{Mode: 0644, Size: f.size}
-}
-
-var _ = fs.NodeOpener(&File{})
-
-func (f *File) Open(req *fuse.OpenRequest, resp *fuse.OpenResponse, intr fs.Intr) (fs.Handle, fuse.Error) {
-	var h fs.Handle
-	var data []byte
-
+// load calls fn inside a View with the contents of the file. Caller
+// must make a copy of the data if needed, because once we're out of
+// the transaction, bolt might reuse the db page.
+func (f *File) load(fn func([]byte)) error {
 	err := f.dir.fs.db.View(func(tx *bolt.Tx) error {
 		b := f.dir.bucket(tx)
 		if b == nil {
@@ -38,64 +38,125 @@ func (f *File) Open(req *fuse.OpenRequest, resp *fuse.OpenResponse, intr fs.Intr
 		if v == nil {
 			return fuse.ESTALE
 		}
-		// make a copy because once we're out of the transaction,
-		// bolt might reuse the db page
-		data = append([]byte(nil), v...)
+		fn(v)
 		return nil
 	})
-	if err != nil {
-		return nil, err
+	return err
+}
+
+func (f *File) Attr() fuse.Attr {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	attr := fuse.Attr{Mode: 0644, Size: uint64(len(f.data))}
+	if f.writers == 0 {
+		// not in memory, fetch correct size.
+		// Attr can't fail, so ignore errors
+		_ = f.load(func(b []byte) { attr.Size = uint64(len(b)) })
+	}
+	return attr
+}
+
+var _ = fs.NodeOpener(&File{})
+
+func (f *File) Open(req *fuse.OpenRequest, resp *fuse.OpenResponse, intr fs.Intr) (fs.Handle, fuse.Error) {
+	if req.Flags.IsReadOnly() {
+		// we don't need to track read-only handles
+		return f, nil
 	}
 
-	switch int(req.Flags & syscall.O_ACCMODE) {
-	case os.O_RDONLY:
-		h = fs.DataHandle(data)
-	case os.O_RDWR, os.O_WRONLY:
-		h = &FileHandle{
-			file: f,
-			data: data,
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.writers == 0 {
+		// load data
+		fn := func(b []byte) {
+			f.data = append([]byte(nil), b...)
 		}
-	default:
-		return nil, fmt.Errorf("weird open request flags: %v", req.Flags)
+		if err := f.load(fn); err != nil {
+			return nil, err
+		}
 	}
-	return h, nil
+
+	f.writers++
+	return f, nil
 }
 
-type FileHandle struct {
-	file *File
-	data []byte
+var _ = fs.HandleReleaser(&File{})
+
+func (f *File) Release(req *fuse.ReleaseRequest, intr fs.Intr) fuse.Error {
+	if req.Flags.IsReadOnly() {
+		// we don't need to track read-only handles
+		return nil
+	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.writers--
+	if f.writers == 0 {
+		f.data = nil
+	}
+	return nil
 }
 
-var _ = fs.Handle(&FileHandle{})
+var _ = fs.HandleReader(&File{})
 
-var _ = fs.HandleWriter(&FileHandle{})
+func (f *File) Read(req *fuse.ReadRequest, resp *fuse.ReadResponse, intr fs.Intr) fuse.Error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	fn := func(b []byte) {
+		fuseutil.HandleRead(req, resp, b)
+	}
+	if f.writers == 0 {
+		f.load(fn)
+	} else {
+		fn(f.data)
+	}
+	return nil
+}
+
+var _ = fs.HandleWriter(&File{})
 
 const maxInt = int(^uint(0) >> 1)
 
-func (h *FileHandle) Write(req *fuse.WriteRequest, resp *fuse.WriteResponse, intr fs.Intr) fuse.Error {
+func (f *File) Write(req *fuse.WriteRequest, resp *fuse.WriteResponse, intr fs.Intr) fuse.Error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	// expand the buffer if necessary
 	newLen := req.Offset + int64(len(req.Data))
 	if newLen > int64(maxInt) {
 		return fuse.Errno(syscall.EFBIG)
 	}
 
-	n := copy(h.data[req.Offset:], req.Data)
+	n := copy(f.data[req.Offset:], req.Data)
 	if n < len(req.Data) {
-		h.data = append(h.data, req.Data[n:]...)
+		f.data = append(f.data, req.Data[n:]...)
 	}
 	resp.Size = len(req.Data)
 	return nil
 }
 
-var _ = fs.HandleFlusher(&FileHandle{})
+var _ = fs.HandleFlusher(&File{})
 
-func (h *FileHandle) Flush(req *fuse.FlushRequest, intr fs.Intr) fuse.Error {
-	err := h.file.dir.fs.db.Update(func(tx *bolt.Tx) error {
-		b := h.file.dir.bucket(tx)
+func (f *File) Flush(req *fuse.FlushRequest, intr fs.Intr) fuse.Error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if f.writers == 0 {
+		// Read-only handles also get flushes. Make sure we don't
+		// overwrite valid file contents with a nil buffer.
+		return nil
+	}
+
+	err := f.dir.fs.db.Update(func(tx *bolt.Tx) error {
+		b := f.dir.bucket(tx)
 		if b == nil {
 			return fuse.ESTALE
 		}
-		return b.Put(h.file.name, h.data)
+		return b.Put(f.name, f.data)
 	})
 	if err != nil {
 		return err

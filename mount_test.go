@@ -445,3 +445,110 @@ func TestBinary(t *testing.T) {
 		})
 	})
 }
+
+func TestRoundtrip(t *testing.T) {
+	withDB(t, func(db *bolt.DB) {
+		prep := func(tx *bolt.Tx) error {
+			_, err := tx.CreateBucket([]byte("bukkit"))
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		if err := db.Update(prep); err != nil {
+			t.Fatal(err)
+		}
+		withMount(t, db, func(mntpath string) {
+			if err := ioutil.WriteFile(
+				filepath.Join(mntpath, "bukkit", "greeting"),
+				[]byte("hello"),
+				0600,
+			); err != nil {
+				t.Fatal(err)
+			}
+
+			data, err := ioutil.ReadFile(filepath.Join(mntpath, "bukkit", "greeting"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if g, e := string(data), "hello"; g != e {
+				t.Fatalf("wrong read results: %q != %q", g, e)
+			}
+		})
+	})
+}
+
+func TestUnifiedBuffer(t *testing.T) {
+	withDB(t, func(db *bolt.DB) {
+		prep := func(tx *bolt.Tx) error {
+			_, err := tx.CreateBucket([]byte("bukkit"))
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		if err := db.Update(prep); err != nil {
+			t.Fatal(err)
+		}
+		withMount(t, db, func(mntpath string) {
+			f, err := os.Create(filepath.Join(mntpath, "bukkit", "greeting"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+			if _, err := f.Write([]byte("hello")); err != nil {
+				t.Fatal(err)
+			}
+			data, err := ioutil.ReadFile(filepath.Join(mntpath, "bukkit", "greeting"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if g, e := string(data), "hello"; g != e {
+				t.Fatalf("wrong read results: %q != %q", g, e)
+			}
+		})
+	})
+}
+
+func TestReadTwice(t *testing.T) {
+	// catches a bug where Flush on a read-only handle emptied the
+	// file
+	withDB(t, func(db *bolt.DB) {
+		prep := func(tx *bolt.Tx) error {
+			b, err := tx.CreateBucket([]byte("bukkit"))
+			if err != nil {
+				return err
+			}
+			if err := b.Put([]byte("greeting"), []byte("hello")); err != nil {
+				return err
+			}
+			return nil
+		}
+		if err := db.Update(prep); err != nil {
+			t.Fatal(err)
+		}
+		withMount(t, db, func(mntpath string) {
+			data, err := ioutil.ReadFile(filepath.Join(mntpath, "bukkit", "greeting"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if g, e := string(data), "hello"; g != e {
+				t.Fatalf("wrong read results: %q != %q", g, e)
+			}
+		})
+		check := func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("bukkit"))
+			if b == nil {
+				t.Fatalf("bukkit disappeared")
+			}
+			v := b.Get([]byte("greeting"))
+			if g, e := string(v), "hello"; g != e {
+				t.Fatalf("wrong write content: %q != %q", g, e)
+			}
+			return nil
+		}
+		if err := db.View(check); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
