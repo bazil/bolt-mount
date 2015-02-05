@@ -60,7 +60,7 @@ func (f *File) Attr() fuse.Attr {
 
 var _ = fs.NodeOpener(&File{})
 
-func (f *File) Open(ctx context.Context, req *fuse.OpenRequest, resp *fuse.OpenResponse) (fs.Handle, fuse.Error) {
+func (f *File) Open(ctx context.Context, req *fuse.OpenRequest, resp *fuse.OpenResponse) (fs.Handle, error) {
 	if req.Flags.IsReadOnly() {
 		// we don't need to track read-only handles
 		return f, nil
@@ -85,7 +85,7 @@ func (f *File) Open(ctx context.Context, req *fuse.OpenRequest, resp *fuse.OpenR
 
 var _ = fs.HandleReleaser(&File{})
 
-func (f *File) Release(ctx context.Context, req *fuse.ReleaseRequest) fuse.Error {
+func (f *File) Release(ctx context.Context, req *fuse.ReleaseRequest) error {
 	if req.Flags.IsReadOnly() {
 		// we don't need to track read-only handles
 		return nil
@@ -103,7 +103,7 @@ func (f *File) Release(ctx context.Context, req *fuse.ReleaseRequest) fuse.Error
 
 var _ = fs.HandleReader(&File{})
 
-func (f *File) Read(ctx context.Context, req *fuse.ReadRequest, resp *fuse.ReadResponse) fuse.Error {
+func (f *File) Read(ctx context.Context, req *fuse.ReadRequest, resp *fuse.ReadResponse) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -122,7 +122,7 @@ var _ = fs.HandleWriter(&File{})
 
 const maxInt = int(^uint(0) >> 1)
 
-func (f *File) Write(ctx context.Context, req *fuse.WriteRequest, resp *fuse.WriteResponse) fuse.Error {
+func (f *File) Write(ctx context.Context, req *fuse.WriteRequest, resp *fuse.WriteResponse) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -142,7 +142,7 @@ func (f *File) Write(ctx context.Context, req *fuse.WriteRequest, resp *fuse.Wri
 
 var _ = fs.HandleFlusher(&File{})
 
-func (f *File) Flush(ctx context.Context, req *fuse.FlushRequest) fuse.Error {
+func (f *File) Flush(ctx context.Context, req *fuse.FlushRequest) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

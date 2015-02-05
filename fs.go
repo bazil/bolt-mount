@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
 	"github.com/boltdb/bolt"
 )
@@ -12,7 +11,7 @@ type FS struct {
 
 var _ = fs.FS(&FS{})
 
-func (f *FS) Root() (fs.Node, fuse.Error) {
+func (f *FS) Root() (fs.Node, error) {
 	n := &Dir{
 		fs: f,
 	}

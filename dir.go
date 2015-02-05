@@ -74,7 +74,7 @@ func (d *Dir) bucket(tx *bolt.Tx) BucketLike {
 	return b
 }
 
-func (d *Dir) ReadDir(ctx context.Context) ([]fuse.Dirent, fuse.Error) {
+func (d *Dir) ReadDir(ctx context.Context) ([]fuse.Dirent, error) {
 	var res []fuse.Dirent
 	err := d.fs.db.View(func(tx *bolt.Tx) error {
 		b := d.bucket(tx)
@@ -100,7 +100,7 @@ func (d *Dir) ReadDir(ctx context.Context) ([]fuse.Dirent, fuse.Error) {
 
 var _ = fs.NodeStringLookuper(&Dir{})
 
-func (d *Dir) Lookup(ctx context.Context, name string) (fs.Node, fuse.Error) {
+func (d *Dir) Lookup(ctx context.Context, name string) (fs.Node, error) {
 	var n fs.Node
 	err := d.fs.db.View(func(tx *bolt.Tx) error {
 		b := d.bucket(tx)
@@ -140,7 +140,7 @@ func (d *Dir) Lookup(ctx context.Context, name string) (fs.Node, fuse.Error) {
 
 var _ = fs.NodeMkdirer(&Dir{})
 
-func (d *Dir) Mkdir(ctx context.Context, req *fuse.MkdirRequest) (fs.Node, fuse.Error) {
+func (d *Dir) Mkdir(ctx context.Context, req *fuse.MkdirRequest) (fs.Node, error) {
 	name, err := DecodeKey(req.Name)
 	if err != nil {
 		return nil, fuse.EPERM
@@ -173,7 +173,7 @@ func (d *Dir) Mkdir(ctx context.Context, req *fuse.MkdirRequest) (fs.Node, fuse.
 
 var _ = fs.NodeCreater(&Dir{})
 
-func (d *Dir) Create(ctx context.Context, req *fuse.CreateRequest, resp *fuse.CreateResponse) (fs.Node, fs.Handle, fuse.Error) {
+func (d *Dir) Create(ctx context.Context, req *fuse.CreateRequest, resp *fuse.CreateResponse) (fs.Node, fs.Handle, error) {
 	if len(d.buckets) == 0 {
 		// only buckets go in root bucket
 		return nil, nil, fuse.EPERM
@@ -193,7 +193,7 @@ func (d *Dir) Create(ctx context.Context, req *fuse.CreateRequest, resp *fuse.Cr
 
 var _ = fs.NodeRemover(&Dir{})
 
-func (d *Dir) Remove(ctx context.Context, req *fuse.RemoveRequest) fuse.Error {
+func (d *Dir) Remove(ctx context.Context, req *fuse.RemoveRequest) error {
 	nameRaw, err := DecodeKey(req.Name)
 	if err != nil {
 		return fuse.ENOENT
