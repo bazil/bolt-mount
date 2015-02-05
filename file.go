@@ -9,6 +9,7 @@ import (
 	"bazil.org/fuse/fs"
 	"bazil.org/fuse/fuseutil"
 	"github.com/boltdb/bolt"
+	"golang.org/x/net/context"
 )
 
 type File struct {
@@ -59,7 +60,7 @@ func (f *File) Attr() fuse.Attr {
 
 var _ = fs.NodeOpener(&File{})
 
-func (f *File) Open(req *fuse.OpenRequest, resp *fuse.OpenResponse, intr fs.Intr) (fs.Handle, fuse.Error) {
+func (f *File) Open(ctx context.Context, req *fuse.OpenRequest, resp *fuse.OpenResponse) (fs.Handle, fuse.Error) {
 	if req.Flags.IsReadOnly() {
 		// we don't need to track read-only handles
 		return f, nil
@@ -84,7 +85,7 @@ func (f *File) Open(req *fuse.OpenRequest, resp *fuse.OpenResponse, intr fs.Intr
 
 var _ = fs.HandleReleaser(&File{})
 
-func (f *File) Release(req *fuse.ReleaseRequest, intr fs.Intr) fuse.Error {
+func (f *File) Release(ctx context.Context, req *fuse.ReleaseRequest) fuse.Error {
 	if req.Flags.IsReadOnly() {
 		// we don't need to track read-only handles
 		return nil
@@ -102,7 +103,7 @@ func (f *File) Release(req *fuse.ReleaseRequest, intr fs.Intr) fuse.Error {
 
 var _ = fs.HandleReader(&File{})
 
-func (f *File) Read(req *fuse.ReadRequest, resp *fuse.ReadResponse, intr fs.Intr) fuse.Error {
+func (f *File) Read(ctx context.Context, req *fuse.ReadRequest, resp *fuse.ReadResponse) fuse.Error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -121,7 +122,7 @@ var _ = fs.HandleWriter(&File{})
 
 const maxInt = int(^uint(0) >> 1)
 
-func (f *File) Write(req *fuse.WriteRequest, resp *fuse.WriteResponse, intr fs.Intr) fuse.Error {
+func (f *File) Write(ctx context.Context, req *fuse.WriteRequest, resp *fuse.WriteResponse) fuse.Error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -141,7 +142,7 @@ func (f *File) Write(req *fuse.WriteRequest, resp *fuse.WriteResponse, intr fs.I
 
 var _ = fs.HandleFlusher(&File{})
 
-func (f *File) Flush(req *fuse.FlushRequest, intr fs.Intr) fuse.Error {
+func (f *File) Flush(ctx context.Context, req *fuse.FlushRequest) fuse.Error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 

@@ -7,6 +7,7 @@ import (
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
 	"github.com/boltdb/bolt"
+	"golang.org/x/net/context"
 )
 
 type Dir struct {
@@ -73,7 +74,7 @@ func (d *Dir) bucket(tx *bolt.Tx) BucketLike {
 	return b
 }
 
-func (d *Dir) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
+func (d *Dir) ReadDir(ctx context.Context) ([]fuse.Dirent, fuse.Error) {
 	var res []fuse.Dirent
 	err := d.fs.db.View(func(tx *bolt.Tx) error {
 		b := d.bucket(tx)
@@ -99,7 +100,7 @@ func (d *Dir) ReadDir(intr fs.Intr) ([]fuse.Dirent, fuse.Error) {
 
 var _ = fs.NodeStringLookuper(&Dir{})
 
-func (d *Dir) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
+func (d *Dir) Lookup(ctx context.Context, name string) (fs.Node, fuse.Error) {
 	var n fs.Node
 	err := d.fs.db.View(func(tx *bolt.Tx) error {
 		b := d.bucket(tx)
@@ -139,7 +140,7 @@ func (d *Dir) Lookup(name string, intr fs.Intr) (fs.Node, fuse.Error) {
 
 var _ = fs.NodeMkdirer(&Dir{})
 
-func (d *Dir) Mkdir(req *fuse.MkdirRequest, intr fs.Intr) (fs.Node, fuse.Error) {
+func (d *Dir) Mkdir(ctx context.Context, req *fuse.MkdirRequest) (fs.Node, fuse.Error) {
 	name, err := DecodeKey(req.Name)
 	if err != nil {
 		return nil, fuse.EPERM
@@ -172,7 +173,7 @@ func (d *Dir) Mkdir(req *fuse.MkdirRequest, intr fs.Intr) (fs.Node, fuse.Error) 
 
 var _ = fs.NodeCreater(&Dir{})
 
-func (d *Dir) Create(req *fuse.CreateRequest, resp *fuse.CreateResponse, intr fs.Intr) (fs.Node, fs.Handle, fuse.Error) {
+func (d *Dir) Create(ctx context.Context, req *fuse.CreateRequest, resp *fuse.CreateResponse) (fs.Node, fs.Handle, fuse.Error) {
 	if len(d.buckets) == 0 {
 		// only buckets go in root bucket
 		return nil, nil, fuse.EPERM
@@ -192,7 +193,7 @@ func (d *Dir) Create(req *fuse.CreateRequest, resp *fuse.CreateResponse, intr fs
 
 var _ = fs.NodeRemover(&Dir{})
 
-func (d *Dir) Remove(req *fuse.RemoveRequest, intr fs.Intr) fuse.Error {
+func (d *Dir) Remove(ctx context.Context, req *fuse.RemoveRequest) fuse.Error {
 	nameRaw, err := DecodeKey(req.Name)
 	if err != nil {
 		return fuse.ENOENT
