@@ -22,7 +22,7 @@ func (d *Dir) Attr() fuse.Attr {
 	return fuse.Attr{Mode: os.ModeDir | 0755}
 }
 
-var _ = fs.HandleReadDirer(&Dir{})
+var _ = fs.HandleReadDirAller(&Dir{})
 
 type BucketLike interface {
 	Bucket(name []byte) *bolt.Bucket
@@ -74,7 +74,7 @@ func (d *Dir) bucket(tx *bolt.Tx) BucketLike {
 	return b
 }
 
-func (d *Dir) ReadDir(ctx context.Context) ([]fuse.Dirent, error) {
+func (d *Dir) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	var res []fuse.Dirent
 	err := d.fs.db.View(func(tx *bolt.Tx) error {
 		b := d.bucket(tx)
