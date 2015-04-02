@@ -131,12 +131,12 @@ func (f *File) Write(ctx context.Context, req *fuse.WriteRequest, resp *fuse.Wri
 	if newLen > int64(maxInt) {
 		return fuse.Errno(syscall.EFBIG)
 	}
+	if newLen := int(newLen); newLen > len(f.data) {
+		f.data = append(f.data, make([]byte, newLen-len(f.data))...)
+	}
 
 	n := copy(f.data[req.Offset:], req.Data)
-	if n < len(req.Data) {
-		f.data = append(f.data, req.Data[n:]...)
-	}
-	resp.Size = len(req.Data)
+	resp.Size = n
 	return nil
 }
 

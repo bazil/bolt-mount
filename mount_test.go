@@ -552,3 +552,48 @@ func TestReadTwice(t *testing.T) {
 		}
 	})
 }
+
+func TestSeekAndWrite(t *testing.T) {
+	withDB(t, func(db *bolt.DB) {
+		prep := func(tx *bolt.Tx) error {
+			_, err := tx.CreateBucket([]byte("bukkit"))
+			if err != nil {
+				return err
+			}
+			return nil
+		}
+		if err := db.Update(prep); err != nil {
+			t.Fatal(err)
+		}
+		withMount(t, db, func(mntpath string) {
+			f, err := os.Create(
+				filepath.Join(mntpath, "bukkit", "greeting"),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer f.Close()
+			n, err := f.WriteAt([]byte("offset"), 3)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if g, e := n, 6; g != e {
+				t.Errorf("bad write length: %d != %d", g, e)
+			}
+		})
+		check := func(tx *bolt.Tx) error {
+			b := tx.Bucket([]byte("bukkit"))
+			if b == nil {
+				t.Fatalf("bukkit disappeared")
+			}
+			v := b.Get([]byte("greeting"))
+			if g, e := string(v), "\x00\x00\x00offset"; g != e {
+				t.Fatalf("wrong write content: %q != %q", g, e)
+			}
+			return nil
+		}
+		if err := db.View(check); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
