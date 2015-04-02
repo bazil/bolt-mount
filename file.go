@@ -164,3 +164,24 @@ func (f *File) Flush(ctx context.Context, req *fuse.FlushRequest) error {
 	}
 	return nil
 }
+
+var _ = fs.NodeSetattrer(&File{})
+
+func (f *File) Setattr(ctx context.Context, req *fuse.SetattrRequest, resp *fuse.SetattrResponse) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	if req.Valid.Size() {
+		if req.Size > uint64(maxInt) {
+			return fuse.Errno(syscall.EFBIG)
+		}
+		newLen := int(req.Size)
+		switch {
+		case newLen > len(f.data):
+			f.data = append(f.data, make([]byte, newLen-len(f.data))...)
+		case newLen < len(f.data):
+			f.data = f.data[:newLen]
+		}
+	}
+	return nil
+}
