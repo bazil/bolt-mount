@@ -45,17 +45,17 @@ func (f *File) load(fn func([]byte)) error {
 	return err
 }
 
-func (f *File) Attr() fuse.Attr {
+func (f *File) Attr(a *fuse.Attr) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	attr := fuse.Attr{Mode: 0644, Size: uint64(len(f.data))}
+	a.Mode = 0644
+	a.Size = uint64(len(f.data))
 	if f.writers == 0 {
 		// not in memory, fetch correct size.
 		// Attr can't fail, so ignore errors
-		_ = f.load(func(b []byte) { attr.Size = uint64(len(b)) })
+		_ = f.load(func(b []byte) { a.Size = uint64(len(b)) })
 	}
-	return attr
 }
 
 var _ = fs.NodeOpener(&File{})

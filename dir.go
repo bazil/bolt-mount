@@ -18,8 +18,8 @@ type Dir struct {
 
 var _ = fs.Node(&Dir{})
 
-func (d *Dir) Attr() fuse.Attr {
-	return fuse.Attr{Mode: os.ModeDir | 0755}
+func (d *Dir) Attr(a *fuse.Attr) {
+	a.Mode = os.ModeDir | 0755
 }
 
 var _ = fs.HandleReadDirAller(&Dir{})
