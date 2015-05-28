@@ -45,7 +45,7 @@ func (f *File) load(fn func([]byte)) error {
 	return err
 }
 
-func (f *File) Attr(a *fuse.Attr) {
+func (f *File) Attr(ctx context.Context, a *fuse.Attr) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -56,6 +56,7 @@ func (f *File) Attr(a *fuse.Attr) {
 		// Attr can't fail, so ignore errors
 		_ = f.load(func(b []byte) { a.Size = uint64(len(b)) })
 	}
+	return nil
 }
 
 var _ = fs.NodeOpener(&File{})
