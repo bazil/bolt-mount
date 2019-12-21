@@ -31,7 +31,7 @@ func withMount(t testing.TB, db *bolt.DB, fn func(mntpath string)) {
 	filesys := &FS{
 		db: db,
 	}
-	mnt, err := fstestutil.MountedT(t, filesys)
+	mnt, err := fstestutil.MountedT(t, filesys, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
