@@ -1,13 +1,13 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
-	"github.com/boltdb/bolt"
-	"golang.org/x/net/context"
+	bolt "go.etcd.io/bbolt"
 )
 
 type Dir struct {

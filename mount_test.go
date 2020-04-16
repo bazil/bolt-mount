@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"bazil.org/fuse/fs/fstestutil"
-	"github.com/boltdb/bolt"
+	bolt "go.etcd.io/bbolt"
 )
 
 func withDB(t testing.TB, fn func(*bolt.DB)) {

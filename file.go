@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"syscall"
@@ -8,8 +9,7 @@ import (
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
 	"bazil.org/fuse/fuseutil"
-	"github.com/boltdb/bolt"
-	"golang.org/x/net/context"
+	bolt "go.etcd.io/bbolt"
 )
 
 type File struct {
