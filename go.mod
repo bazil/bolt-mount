@@ -3,7 +3,7 @@ module bazil.org/bolt-mount
 go 1.13
 
 require (
-	bazil.org/fuse v0.0.0-20191221031930-2713cb0db94b
-	github.com/boltdb/bolt v1.3.1
-	golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553
+	bazil.org/fuse v0.0.0-20200416020106-1af1d1f56f46
+	go.etcd.io/bbolt v1.3.4
+	golang.org/x/sys v0.0.0-20200413165638-669c56c373c4 // indirect
 )

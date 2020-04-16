@@ -3,7 +3,7 @@ package main
 import (
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
-	"github.com/boltdb/bolt"
+	bolt "go.etcd.io/bbolt"
 )
 
 func mount(dbpath, mountpoint string) error {
